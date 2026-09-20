@@ -1,0 +1,59 @@
+name: interferometry-workbench
+
+services:
+  api:
+    build:
+      context: .
+      target: api
+    image: interferometry-workbench-api
+    restart: unless-stopped
+    ports:
+      # Host port is configurable: API_PORT=9000 docker compose up
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  web:
+    build:
+      context: .
+      target: web
+    image: interferometry-workbench-web
+    restart: unless-stopped
+    ports:
+      # Host port is configurable: WEB_PORT=3000 docker compose up
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  # Executable acceptance suite: drives a real Chromium browser through the
+  # web UI and checks the API end to end.  Run with:
+  #   docker compose --profile verify up --build --exit-code-from verify
+  verify:
+    build:
+      context: .
+      target: verify
+    image: interferometry-workbench-verify
+    profiles: ["verify"]
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      API_BASE: http://api:8000
+      WEB_BASE: http://web
