@@ -2,3 +2,9 @@
 .env
 node_modules/
 __pycache__/
+.venv/
+.npm-cache/
+.pw-browsers/
+dist/
+*.pyc
+.pytest_cache/

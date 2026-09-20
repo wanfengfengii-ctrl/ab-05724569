@@ -1,0 +1,58 @@
+# 多波长激光干涉整周解算工作台 —— Docker Compose
+#
+# 宿主机端口均可通过环境变量覆盖，例如：
+#   WEB_PORT=8080 API_PORT=8001 docker compose up --build
+# 验收（真实浏览器联调）：
+#   docker compose --profile verify run --rm verify
+# 或一键：
+#   docker compose --profile verify up verify --build
+
+services:
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      CORS_ORIGINS: "*"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # 可执行验收服务：容器内 Playwright 驱动真实 Chromium，覆盖前后端联调。
+  # 不随普通 `docker compose up` 启动，使用 verify profile 显式运行。
+  verify:
+    profiles: ["verify"]
+    build:
+      context: .
+      target: verify
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://web:80
+      API_URL: http://api:8000
+    # 不映射端口、不长期驻留；运行结束即退出并返回验收退出码。
+    restart: "no"

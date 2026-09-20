@@ -1,0 +1,10 @@
+.venv/
+.npm-cache/
+.pw-browsers/
+node_modules/
+**/dist/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+.git/
+.DS_Store
